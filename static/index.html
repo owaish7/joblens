@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JobLens — Semantic Job Search + AI Assistant</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="hero">
+    <h1>🔎 JobLens</h1>
+    <p class="tagline">Semantic search &amp; a RAG assistant over real remote jobs.</p>
+    <p class="attrib">Job data from <a href="https://remotive.com" target="_blank" rel="noopener">Remotive</a> &amp; <a href="https://remoteok.com" target="_blank" rel="noopener">RemoteOK</a> · powered by Google Gemini</p>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="search">Search</button>
+    <button class="tab" data-tab="ask">Ask AI</button>
+  </nav>
+
+  <!-- SEARCH -->
+  <section id="search" class="panel active">
+    <form id="search-form" class="controls">
+      <input id="query" type="text" placeholder="e.g. remote python role working with LLMs and data pipelines" autocomplete="off" />
+      <select id="category"><option value="">All categories</option></select>
+      <button type="submit">Search</button>
+    </form>
+    <div id="overview" class="overview hidden"></div>
+    <div id="results" class="results"></div>
+  </section>
+
+  <!-- ASK -->
+  <section id="ask" class="panel">
+    <form id="ask-form" class="controls">
+      <input id="question" type="text" placeholder="e.g. Which of these jobs would suit a fresher who knows Python and some ML?" autocomplete="off" />
+      <button type="submit">Ask</button>
+    </form>
+    <div id="answer" class="answer hidden"></div>
+    <div id="sources" class="results"></div>
+  </section>
+
+  <footer id="status" class="status"></footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
