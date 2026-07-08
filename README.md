@@ -1,3 +1,14 @@
+---
+title: JobLens
+emoji: 🔎
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+short_description: Semantic job search + RAG assistant (FastAPI + Gemini)
+---
+
 # 🔎 JobLens — Semantic Job Search + RAG Assistant
 
 Search **real remote jobs** by meaning, not just keywords — and ask an AI
