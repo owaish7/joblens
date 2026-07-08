@@ -8,8 +8,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# HF Spaces expects the app on port 7860.
+# Bind to the platform-provided $PORT (Render sets it; falls back to 7860 locally).
 ENV PORT=7860
 EXPOSE 7860
 
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-7860}"]

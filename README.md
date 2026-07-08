@@ -1,14 +1,3 @@
----
-title: JobLens
-emoji: 🔎
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 7860
-pinned: false
-short_description: Semantic job search + RAG assistant (FastAPI + Gemini)
----
-
 # 🔎 JobLens — Semantic Job Search + RAG Assistant
 
 Search **real remote jobs** by meaning, not just keywords — and ask an AI
@@ -16,8 +5,9 @@ assistant questions that are answered *only* from the retrieved listings (with
 citations). A compact, production-shaped demo of the modern GenAI stack:
 **embeddings → vector retrieval → LLM generation**, wrapped in a FastAPI service.
 
-> **Live demo:** https://huggingface.co/spaces/Owais78/joblens
-> **Source:** https://github.com/owaish7/joblens
+> **Live demo:** https://joblens.onrender.com  ·  **Source:** https://github.com/owaish7/joblens
+>
+> _(free tier sleeps after inactivity — first load may take ~50s to wake)_
 
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688)
@@ -72,12 +62,20 @@ Get a free Gemini key at <https://aistudio.google.com/apikey>. If a model name
 errors, run `python -m src.gemini` to list the models your key can use and update
 `GEN_MODEL` / `EMBED_MODEL` in `.env`.
 
-## Deploy (Hugging Face Spaces, free)
+## Deploy (Render, free)
 
-1. Create a **Docker** Space.
-2. Push this repo (including the committed `data/` index).
-3. In **Settings → Secrets**, add `GEMINI_API_KEY`.
-4. The Space builds from the `Dockerfile` and serves on port 7860.
+This repo ships a `render.yaml` blueprint and a `Dockerfile`, so deploy is
+near one-click:
+
+1. Push this repo to GitHub (done).
+2. On [Render](https://render.com): **New + → Blueprint** → connect this repo.
+   Render reads `render.yaml` and provisions the service.
+3. When prompted, paste your `GEMINI_API_KEY` (marked secret; not stored in git).
+4. Render builds the `Dockerfile` and serves the app. The free tier sleeps after
+   ~15 min idle and cold-starts in ~50s.
+
+The committed `data/` index means the app starts instantly and only needs the key
+at query time.
 
 ## Tech stack
 
