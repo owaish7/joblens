@@ -5,7 +5,7 @@ assistant questions that are answered *only* from the retrieved listings (with
 citations). A compact, production-shaped demo of the modern GenAI stack:
 **embeddings → vector retrieval → LLM generation**, wrapped in a FastAPI service.
 
-> **Live demo:** https://joblens.onrender.com  ·  **Source:** https://github.com/owaish7/joblens
+> **Live demo:** https://joblens-a6sg.onrender.com  ·  **Source:** https://github.com/owaish7/joblens
 >
 > _(free tier sleeps after inactivity — first load may take ~50s to wake)_
 
