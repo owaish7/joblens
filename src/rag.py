@@ -1,11 +1,11 @@
-"""Retrieval-Augmented Generation layer.
-
-Two capabilities on top of the vector store:
-  * search()  -> semantic retrieval, with an optional AI overview of the results
-  * ask()     -> RAG: retrieve relevant jobs, then have Gemini answer grounded
-                 ONLY in those jobs, with inline [n] citations.
-"""
+"""Search and grounded RAG capabilities built with LangChain and LangGraph."""
 from __future__ import annotations
+
+from typing import TypedDict
+
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langgraph.graph import END, START, StateGraph
 
 from . import config, gemini
 from .store import JobStore
@@ -37,36 +37,106 @@ def overview(query: str, jobs: list[dict]) -> str:
     if not (_has_key() and jobs):
         return ""
     listing = "\n".join(f"- {j['title']} at {j['company']} ({j['location']})" for j in jobs[:8])
-    prompt = (
-        f'A user searched for "{query}". Here are the top matching remote jobs:\n{listing}\n\n'
-        "In 2-3 sentences, summarise what kinds of roles matched and any common "
-        "themes (seniority, skills, regions). Be concise and factual."
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "Summarise search results concisely and factually. Do not invent details.",
+            ),
+            (
+                "human",
+                "A user searched for: {query}\n\nTop matching remote jobs:\n{listing}\n\n"
+                "In 2-3 sentences, summarise the roles and common themes "
+                "(seniority, skills, regions).",
+            ),
+        ]
     )
-    return gemini.generate(prompt)
+    try:
+        chain = prompt | gemini.chat_model(temperature=0.3) | StrOutputParser()
+        return chain.invoke({"query": query, "listing": listing}).strip()
+    except gemini.GeminiError:
+        raise
+    except Exception as exc:
+        raise gemini.GeminiError(f"Generation failed: {exc}") from exc
+
+
+class AskState(TypedDict, total=False):
+    """State carried through the deliberately small grounded-answer graph."""
+
+    question: str
+    top_k: int
+    jobs: list[dict]
+    context: str
+    answer: str
+    sources: list[dict]
+
+
+def _retrieve_documents(state: AskState) -> AskState:
+    jobs = store.semantic_search(
+        gemini.embed_query(state["question"]), top_k=state.get("top_k", 6)
+    )
+    context = "\n\n".join(
+        f"[{index}] {job['title']} at {job['company']}\n"
+        f"Location: {job['location']} | Type: {job['job_type']} | Category: {job['category']}\n"
+        f"{job['summary']}"
+        for index, job in enumerate(jobs, 1)
+    )
+    return {"jobs": jobs, "context": context}
+
+
+_RAG_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            "You are a job-search assistant. Answer using ONLY the supplied job listings. "
+            "Cite every job you rely on with its number in square brackets, for example [2]. "
+            "If the listings do not contain the answer, say so plainly.",
+        ),
+        (
+            "human",
+            "=== JOB LISTINGS ===\n{context}\n\n=== QUESTION ===\n{question}",
+        ),
+    ]
+)
+
+
+def _generate_grounded_answer(state: AskState) -> AskState:
+    try:
+        chain = _RAG_PROMPT | gemini.chat_model(temperature=0.3) | StrOutputParser()
+        answer = chain.invoke({"question": state["question"], "context": state["context"]})
+        return {"answer": answer.strip()}
+    except gemini.GeminiError:
+        raise
+    except Exception as exc:
+        raise gemini.GeminiError(f"Generation failed: {exc}") from exc
+
+
+def _attach_citations(state: AskState) -> AskState:
+    """Expose source records in precisely the order used by [1], [2], ... citations."""
+    return {"sources": state.get("jobs", [])}
+
+
+def _build_ask_graph():
+    workflow = StateGraph(AskState)
+    workflow.add_node("retrieve_documents", _retrieve_documents)
+    workflow.add_node("generate_grounded_answer", _generate_grounded_answer)
+    workflow.add_node("attach_citations", _attach_citations)
+    workflow.add_edge(START, "retrieve_documents")
+    workflow.add_edge("retrieve_documents", "generate_grounded_answer")
+    workflow.add_edge("generate_grounded_answer", "attach_citations")
+    workflow.add_edge("attach_citations", END)
+    return workflow.compile()
+
+
+ask_graph = _build_ask_graph()
 
 
 def ask(question: str, *, top_k: int = 6) -> dict:
-    """RAG: answer a question grounded strictly in the retrieved job listings."""
+    """Run the LangGraph retrieval -> answer -> citation workflow."""
     if not store.ready:
         return {"answer": "The job index has not been built yet.", "sources": []}
     if not _has_key():
         return {"answer": "Set GEMINI_API_KEY to enable the AI assistant.", "sources": []}
 
-    query_vec = gemini.embed_query(question)
-    jobs = store.semantic_search(query_vec, top_k=top_k)
-
-    context = "\n\n".join(
-        f"[{i + 1}] {j['title']} at {j['company']}\n"
-        f"Location: {j['location']} | Type: {j['job_type']} | Category: {j['category']}\n"
-        f"{j['summary']}"
-        for i, j in enumerate(jobs)
-    )
-    prompt = (
-        "You are a job-search assistant. Answer the user's question using ONLY the "
-        "job listings below. Cite the jobs you rely on with their number in square "
-        "brackets, e.g. [2]. If the listings don't contain the answer, say so plainly.\n\n"
-        f"=== JOB LISTINGS ===\n{context}\n\n"
-        f"=== QUESTION ===\n{question}"
-    )
-    answer = gemini.generate(prompt)
-    return {"answer": answer, "sources": jobs}
+    result = ask_graph.invoke({"question": question, "top_k": top_k})
+    return {"answer": result["answer"], "sources": result["sources"]}

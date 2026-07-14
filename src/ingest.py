@@ -1,8 +1,9 @@
 """One-time index builder.
 
 Pulls remote jobs from two public APIs (Remotive + RemoteOK), normalises them
-into one schema, embeds each with Gemini, and saves `data/jobs.json` +
-`data/embeddings.npy`. Commit those two files so the deployed app starts
+into one schema, embeds each with Gemini through LangChain, and saves
+`data/jobs.json` + the LangChain FAISS artifact (`jobs.faiss` and `jobs.pkl`).
+Commit those files so the deployed app starts
 instantly (it only needs the API key at query time, not to rebuild the index).
 
     python -m src.ingest
@@ -17,8 +18,9 @@ import html
 import json
 import re
 
-import numpy as np
 import requests
+from langchain_community.vectorstores import FAISS
+from langchain_community.vectorstores.utils import DistanceStrategy
 
 from . import config, gemini
 
@@ -150,16 +152,26 @@ def main() -> None:
         raise SystemExit("No jobs returned from any source -- aborting.")
 
     print(f"Embedding {len(jobs)} jobs with {config.EMBED_MODEL} ...")
-    vectors = gemini.embed_texts([build_embedding_text(j) for j in jobs])
+    texts = [build_embedding_text(job) for job in jobs]
+    vectors = gemini.embed_texts(texts)
 
-    for j in jobs:  # drop the bulky full-text field before saving display metadata
-        j.pop("_text", None)
+    display_jobs = [{key: value for key, value in job.items() if key != "_text"} for job in jobs]
+    vectorstore = FAISS.from_embeddings(
+        zip(texts, vectors),
+        gemini.embeddings(),
+        metadatas=display_jobs,
+        distance_strategy=DistanceStrategy.MAX_INNER_PRODUCT,
+        normalize_L2=True,
+    )
 
     config.DATA_DIR.mkdir(exist_ok=True)
-    config.JOBS_PATH.write_text(json.dumps(jobs, ensure_ascii=False, indent=2), encoding="utf-8")
-    np.save(config.EMBEDDINGS_PATH, np.asarray(vectors, dtype="float32"))
+    config.JOBS_PATH.write_text(json.dumps(display_jobs, ensure_ascii=False, indent=2), encoding="utf-8")
+    vectorstore.save_local(str(config.DATA_DIR), index_name=config.FAISS_INDEX_NAME)
 
-    print(f"Saved {len(jobs)} jobs -> {config.JOBS_PATH.name}, {config.EMBEDDINGS_PATH.name}")
+    print(
+        f"Saved {len(display_jobs)} jobs -> {config.JOBS_PATH.name}, "
+        f"{config.FAISS_INDEX_PATH.name}, {config.FAISS_DOCSTORE_PATH.name}"
+    )
     print("Done. Start the app with:  uvicorn src.main:app --reload")
 
 

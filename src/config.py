@@ -10,7 +10,11 @@ load_dotenv()
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 JOBS_PATH = DATA_DIR / "jobs.json"
-EMBEDDINGS_PATH = DATA_DIR / "embeddings.npy"
+# LangChain's FAISS integration writes these two files with ``jobs`` as the
+# index name. ``jobs.json`` remains a small, human-readable export of metadata.
+FAISS_INDEX_NAME = "jobs"
+FAISS_INDEX_PATH = DATA_DIR / f"{FAISS_INDEX_NAME}.faiss"
+FAISS_DOCSTORE_PATH = DATA_DIR / f"{FAISS_INDEX_NAME}.pkl"
 
 # --- Gemini --------------------------------------------------------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
